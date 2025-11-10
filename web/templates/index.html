@@ -17,7 +17,6 @@
       padding: 30px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.2);
       margin-top: 20px;
-      max-width: 800px;
     }
     .tape-container {
       background: #f8f9fa;
@@ -25,68 +24,220 @@
       border-radius: 10px;
       padding: 20px;
       margin: 20px 0;
+    }
+    .tape {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 100px;
+    }
+    .cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .cell-symbol {
+      border: 2px solid #6c757d;
+      border-radius: 8px;
+      width: 45px;
+      height: 45px;
       text-align: center;
-      font-family: monospace;
-      font-size: 24px;
-      word-wrap: break-word;
-      white-space: pre-wrap;
+      font-weight: bold;
+      font-size: 18px;
+      line-height: 41px;
+      background: white;
+      transition: all 0.3s ease;
+    }
+    .cell-symbol.current {
+      border-color: #dc3545;
+      background: #dc3545;
+      color: white;
+      transform: scale(1.1);
+    }
+    .cell-index {
+      font-size: 11px;
+      color: #6c757d;
+      margin-top: 5px;
+    }
+    .head-pointer {
+      color: #dc3545;
+      font-weight: bold;
+      margin-top: 3px;
+    }
+    .step-info {
+      background: #e9ecef;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px 0;
+      font-family: 'Courier New', monospace;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .btn-control {
+      min-width: 120px;
     }
     .result-success {
-      background: #d4edda !important;
-      color: #155724 !important;
-      border-color: #c3e6cb !important;
+      background: #d4edda;
+      border-color: #c3e6cb;
+      color: #155724;
     }
     .result-error {
-      background: #f8d7da !important;
-      color: #721c24 !important;
-      border-color: #f5c6cb !important;
+      background: #f8d7da;
+      border-color: #f5c6cb;
+      color: #721c24;
+    }
+    .progress-info {
+      text-align: center;
+      margin: 10px 0;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
 <div class="container">
   <div class="text-center mb-4">
-    <h1 class="text-primary fw-bold">Машина Тьюринга</h1>
+    <h1 class="text-primary">Машина Тьюринга</h1>
     <p class="lead">Проверка слов на палиндром</p>
   </div>
 
   <div class="row justify-content-center">
-    <div class="col-md-8">
+    <div class="col-md-6">
       <div class="input-group mb-4">
         <input id="word" type="text" class="form-control form-control-lg" 
                placeholder="Введите слово для проверки" 
-               onkeypress="if(event.key==='Enter') checkWord()">
-        <button class="btn btn-primary btn-lg" onclick="checkWord()">Проверить</button>
+               onkeypress="if(event.key=='Enter') checkWord()">
+        <button class="btn btn-primary btn-lg" onclick="checkWord()">
+          Проверить
+        </button>
       </div>
     </div>
   </div>
 
-  <div id="result" class="alert d-none text-center fw-semibold"></div>
+  <div id="result" class="alert d-none"></div>
 
-  <div class="tape-container" id="tape">
-    Введите слово для отображения ленты...
+  <div class="tape-container">
+    <h5 class="text-center mb-3">Лента машины Тьюринга</h5>
+    <div id="tape" class="tape">
+      <div class="text-muted">Введите слово для отображения ленты...</div>
+    </div>
+  </div>
+
+  <div id="stepInfo" class="step-info d-none">
+    <div><strong>Действие:</strong> <span id="actionText">-</span></div>
+    <div><strong>Состояние:</strong> <span id="stateText">-</span></div>
+    <div><strong>Позиция:</strong> <span id="positionText">-</span></div>
+  </div>
+
+  <div class="progress-info">
+    Шаг <span id="currentStep">0</span> из <span id="totalSteps">0</span>
+  </div>
+
+  <div id="controls" class="controls d-none">
+    <button class="btn btn-outline-secondary btn-control" id="firstStep">
+      ⏮ Первый
+    </button>
+    <button class="btn btn-outline-primary btn-control" id="prevStep">
+      ◀ Назад
+    </button>
+    <button class="btn btn-outline-primary btn-control" id="nextStep">
+      Вперёд ▶
+    </button>
+    <button class="btn btn-outline-secondary btn-control" id="lastStep">
+      Последний ⏭
+    </button>
   </div>
 </div>
 
 <script>
-async function checkWord() {
-  const wordInput = document.getElementById('word');
-  const resultDiv = document.getElementById('result');
-  const tapeDiv = document.getElementById('tape');
-  const word = wordInput.value.trim();
+let steps = [];
+let currentStep = 0;
 
-  if (!word) {
-    resultDiv.className = "alert alert-warning text-center";
-    resultDiv.textContent = "Введите слово для проверки!";
-    resultDiv.classList.remove("d-none");
-    tapeDiv.textContent = "Введите слово для отображения ленты...";
+function renderStep(stepIndex) {
+  const tapeDiv = document.getElementById('tape');
+  const stepInfoDiv = document.getElementById('stepInfo');
+  const actionText = document.getElementById('actionText');
+  const stateText = document.getElementById('stateText');
+  const positionText = document.getElementById('positionText');
+  const currentStepSpan = document.getElementById('currentStep');
+  const totalStepsSpan = document.getElementById('totalSteps');
+
+  tapeDiv.innerHTML = '';
+
+  if (steps.length === 0) {
+    stepInfoDiv.classList.add('d-none');
     return;
   }
 
-  resultDiv.className = "alert alert-info text-center";
+  const step = steps[stepIndex];
+  const tapeStr = step.tape.split('');
+
+  // Отображаем ленту
+  tapeStr.forEach((symbol, i) => {
+    const cellDiv = document.createElement('div');
+    cellDiv.className = 'cell';
+    
+    const symbolDiv = document.createElement('div');
+    symbolDiv.className = 'cell-symbol' + (i === step.head ? ' current' : '');
+    symbolDiv.textContent = symbol === '_' ? ' ' : symbol;
+    
+    const indexDiv = document.createElement('div');
+    indexDiv.className = 'cell-index';
+    indexDiv.textContent = i;
+    
+    cellDiv.appendChild(symbolDiv);
+    cellDiv.appendChild(indexDiv);
+    
+    // Добавляем указатель для текущей позиции
+    if (i === step.head) {
+      const pointerDiv = document.createElement('div');
+      pointerDiv.className = 'head-pointer';
+      pointerDiv.textContent = '▼';
+      cellDiv.appendChild(pointerDiv);
+    }
+    
+    tapeDiv.appendChild(cellDiv);
+  });
+
+  // Обновляем информацию о шаге
+  actionText.textContent = step.action.split('\n')[1] || step.action;
+  stateText.textContent = step.state;
+  positionText.textContent = step.head;
+  currentStepSpan.textContent = stepIndex + 1;
+  totalStepsSpan.textContent = steps.length;
+
+  stepInfoDiv.classList.remove('d-none');
+
+  // Обновляем состояние кнопок
+  updateControls();
+}
+
+function updateControls() {
+  document.getElementById('firstStep').disabled = currentStep === 0;
+  document.getElementById('prevStep').disabled = currentStep === 0;
+  document.getElementById('nextStep').disabled = currentStep === steps.length - 1;
+  document.getElementById('lastStep').disabled = currentStep === steps.length - 1;
+}
+
+async function checkWord() {
+  const word = document.getElementById('word').value.trim();
+  const resultDiv = document.getElementById('result');
+  
+  if (!word) {
+    resultDiv.className = "alert alert-warning";
+    resultDiv.textContent = "Введите слово для проверки!";
+    resultDiv.classList.remove("d-none");
+    return;
+  }
+
+  resultDiv.className = "alert alert-info";
   resultDiv.textContent = "Выполняется проверка...";
   resultDiv.classList.remove("d-none");
-  tapeDiv.textContent = "";
 
   try {
     const res = await fetch('/check', {
@@ -94,35 +245,59 @@ async function checkWord() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({word})
     });
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
+    
     const data = await res.json();
 
     if (data.error) {
-      resultDiv.className = "alert alert-danger text-center";
+      resultDiv.className = "alert alert-danger";
       resultDiv.textContent = data.error;
       return;
     }
 
-    resultDiv.className = data.is_palindrome 
-      ? "alert result-success text-center" 
-      : "alert result-error text-center";
+    steps = data.steps;
+    currentStep = 0;
+    
+    resultDiv.className = data.is_palindrome ? 
+      "alert alert-success result-success" : 
+      "alert alert-danger result-error";
     resultDiv.textContent = data.result;
 
-    // Отобразить содержимое ленты
-    tapeDiv.textContent = data.tape || "Лента пуста.";
+    document.getElementById('controls').classList.remove('d-none');
+    renderStep(currentStep);
 
   } catch (err) {
-    resultDiv.className = "alert alert-danger text-center";
+    resultDiv.className = "alert alert-danger";
     resultDiv.textContent = "Ошибка соединения: " + err.message;
   }
 }
 
-// Автофокус после загрузки
-window.addEventListener("load", () => document.getElementById('word').focus());
+// Обработчики кнопок управления
+document.getElementById('firstStep').addEventListener('click', () => {
+  currentStep = 0;
+  renderStep(currentStep);
+});
+
+document.getElementById('prevStep').addEventListener('click', () => {
+  if (currentStep > 0) {
+    currentStep--;
+    renderStep(currentStep);
+  }
+});
+
+document.getElementById('nextStep').addEventListener('click', () => {
+  if (currentStep < steps.length - 1) {
+    currentStep++;
+    renderStep(currentStep);
+  }
+});
+
+document.getElementById('lastStep').addEventListener('click', () => {
+  currentStep = steps.length - 1;
+  renderStep(currentStep);
+});
+
+// Автофокус на поле ввода
+document.getElementById('word').focus();
 </script>
 </body>
 </html>
