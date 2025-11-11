@@ -6,7 +6,8 @@ from tm.transitions import TransitionTable
 from gui.app_gui import TuringAppGUI
 
 # --- Построим универсальную таблицу переходов (пример, можно заменить вашей)
-transitions = TransitionTable.universal_palindrome_table()
+transitions = TransitionTable.strict_palindrome_table()
+
 
 # Создаём машину: передаём таблицу и имена нач/принятия/отклонения
 machine = TuringMachine(transitions, start_state="q0", accept_state="q_accept", reject_state="q_reject")

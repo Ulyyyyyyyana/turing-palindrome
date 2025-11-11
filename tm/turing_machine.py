@@ -18,7 +18,7 @@ class TuringMachine:
             self.tape = Tape("", blank=blank)
         else:
             # иначе — первый аргумент может быть входной строкой
-            self.transitions = TransitionTable.universal_palindrome_table()
+            self.transitions = TransitionTable.strict_palindrome_table()
             self.tape = Tape(first_arg if isinstance(first_arg, str) else "", blank=blank)
 
         self.head = 0
@@ -98,7 +98,14 @@ class TuringMachine:
         self.state = new_state
         self.step_count += 1
 
-        action = f"Читали: {cur_symbol} -> Писали: {write_sym} -> Двиг: {direction} -> Состояние: {prev_state} -> {new_state}"
+        direction_text = {"L": "влево", "R": "вправо", "S": "остались"}
+        action = (
+            f"[{self.step_count}] "
+            f"Символ: '{cur_symbol}' → Записали: '{write_sym if write_sym != '_any_' else cur_symbol}', "
+            f"движение: {direction_text.get(direction, direction)}, "
+            f"состояние: {prev_state} → {new_state}"
+        )
+
         return action
 
     def run(self):
@@ -112,7 +119,7 @@ class TuringMachine:
                 return self.state == self.accept_state
             self.step()
         # Превышен лимит
-        self.state = self.reject_state  # <-- добавь эту строку
+        self.state = self.reject_state  
         return False
 
     def is_halted(self) -> bool:

@@ -139,24 +139,18 @@
   </div>
 
   <div id="controls" class="controls d-none">
-    <button class="btn btn-outline-secondary btn-control" id="firstStep">
-      ⏮ Первый
-    </button>
-    <button class="btn btn-outline-primary btn-control" id="prevStep">
-      ◀ Назад
-    </button>
-    <button class="btn btn-outline-primary btn-control" id="nextStep">
-      Вперёд ▶
-    </button>
-    <button class="btn btn-outline-secondary btn-control" id="lastStep">
-      Последний ⏭
-    </button>
+    <button class="btn btn-outline-secondary btn-control" id="firstStep">⏮ Первый</button>
+    <button class="btn btn-outline-primary btn-control" id="prevStep">◀ Назад</button>
+    <button class="btn btn-outline-success btn-control" id="autoStep">▶ Авто</button>
+    <button class="btn btn-outline-primary btn-control" id="nextStep">Вперёд ▶</button>
+    <button class="btn btn-outline-secondary btn-control" id="lastStep">Последний ⏭</button>
   </div>
 </div>
 
 <script>
 let steps = [];
 let currentStep = 0;
+let autoInterval = null;
 
 function renderStep(stepIndex) {
   const tapeDiv = document.getElementById('tape');
@@ -166,6 +160,7 @@ function renderStep(stepIndex) {
   const positionText = document.getElementById('positionText');
   const currentStepSpan = document.getElementById('currentStep');
   const totalStepsSpan = document.getElementById('totalSteps');
+  const resultDiv = document.getElementById('result');
 
   tapeDiv.innerHTML = '';
 
@@ -193,7 +188,6 @@ function renderStep(stepIndex) {
     cellDiv.appendChild(symbolDiv);
     cellDiv.appendChild(indexDiv);
     
-    // Добавляем указатель для текущей позиции
     if (i === step.head) {
       const pointerDiv = document.createElement('div');
       pointerDiv.className = 'head-pointer';
@@ -205,16 +199,33 @@ function renderStep(stepIndex) {
   });
 
   // Обновляем информацию о шаге
-  actionText.textContent = step.action.split('\n')[1] || step.action;
+  actionText.textContent = step.action;
   stateText.textContent = step.state;
   positionText.textContent = step.head;
   currentStepSpan.textContent = stepIndex + 1;
   totalStepsSpan.textContent = steps.length;
-
   stepInfoDiv.classList.remove('d-none');
 
-  // Обновляем состояние кнопок
   updateControls();
+
+  // Если дошли до конца — показываем результат
+  if (stepIndex === steps.length - 1) {
+    showFinalResult();
+  } else {
+    resultDiv.classList.add("d-none");
+  }
+}
+
+function showFinalResult() {
+  const resultDiv = document.getElementById('result');
+  const data = window.finalData;
+  if (!data) return;
+
+  resultDiv.className = data.is_palindrome ? 
+    "alert alert-success result-success" : 
+    "alert alert-danger result-error";
+  resultDiv.textContent = data.result;
+  resultDiv.classList.remove("d-none");
 }
 
 function updateControls() {
@@ -222,6 +233,17 @@ function updateControls() {
   document.getElementById('prevStep').disabled = currentStep === 0;
   document.getElementById('nextStep').disabled = currentStep === steps.length - 1;
   document.getElementById('lastStep').disabled = currentStep === steps.length - 1;
+
+  const autoBtn = document.getElementById('autoStep');
+  if (autoInterval) {
+    autoBtn.textContent = "⏸ Пауза";
+    autoBtn.classList.remove('btn-outline-success');
+    autoBtn.classList.add('btn-danger');
+  } else {
+    autoBtn.textContent = "▶ Авто";
+    autoBtn.classList.remove('btn-danger');
+    autoBtn.classList.add('btn-outline-success');
+  }
 }
 
 async function checkWord() {
@@ -236,7 +258,7 @@ async function checkWord() {
   }
 
   resultDiv.className = "alert alert-info";
-  resultDiv.textContent = "Выполняется проверка...";
+    resultDiv.textContent = "Машина Тьюринга работает...";
   resultDiv.classList.remove("d-none");
 
   try {
@@ -254,14 +276,11 @@ async function checkWord() {
       return;
     }
 
+    // Сохраняем шаги и результат
     steps = data.steps;
+    window.finalData = data;
     currentStep = 0;
     
-    resultDiv.className = data.is_palindrome ? 
-      "alert alert-success result-success" : 
-      "alert alert-danger result-error";
-    resultDiv.textContent = data.result;
-
     document.getElementById('controls').classList.remove('d-none');
     renderStep(currentStep);
 
@@ -271,7 +290,7 @@ async function checkWord() {
   }
 }
 
-// Обработчики кнопок управления
+// Кнопки управления
 document.getElementById('firstStep').addEventListener('click', () => {
   currentStep = 0;
   renderStep(currentStep);
@@ -296,7 +315,28 @@ document.getElementById('lastStep').addEventListener('click', () => {
   renderStep(currentStep);
 });
 
-// Автофокус на поле ввода
+// Новый — автопроигрывание
+document.getElementById('autoStep').addEventListener('click', () => {
+  if (autoInterval) {
+    clearInterval(autoInterval);
+    autoInterval = null;
+    updateControls();
+    return;
+  }
+
+  autoInterval = setInterval(() => {
+    if (currentStep < steps.length - 1) {
+      currentStep++;
+      renderStep(currentStep);
+    } else {
+      clearInterval(autoInterval);
+      autoInterval = null;
+      updateControls();
+    }
+  }, 700); // скорость — 0.7 сек/шаг
+  updateControls();
+});
+
 document.getElementById('word').focus();
 </script>
 </body>

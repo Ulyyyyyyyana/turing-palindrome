@@ -1,26 +1,14 @@
-# tm/transitions.py
 class TransitionTable:
-    """
-    Хранит таблицу переходов δ для Машины Тьюринга.
-    Формат transitions: { state: { symbol_or__any_: (write_symbol, move, new_state), ... }, ... }
-    move: "L", "R" или "S"
-    """
     def __init__(self, transitions: dict):
         self.transitions = transitions or {}
 
     def get(self, state: str, symbol: str):
-        """
-        Возвращает кортеж (что_записать, куда_двигаться, новое_состояние)
-        Если перехода нет — возвращает None
-        """
         if state in self.transitions:
             state_transitions = self.transitions[state]
-            # точное совпадение
             if symbol in state_transitions:
                 return state_transitions[symbol]
-            # wildcard
-            if '_any_' in state_transitions:
-                return state_transitions['_any_']
+            if "_any_" in state_transitions:
+                return state_transitions["_any_"]
         return None
 
     def __contains__(self, state: str):
@@ -30,79 +18,47 @@ class TransitionTable:
         return f"<TransitionTable states={len(self.transitions)}>"
 
     @staticmethod
-    def default_palindrome_table():
+    def strict_palindrome_table():
         """
-        Пример таблицы для алфавита {'a','b'} (как в вашем оригинальном фрагменте).
-        Возвращает TransitionTable.
+        Машина Тьюринга для строгой проверки палиндрома.
+        Различает символы, помечает их и сверяет зеркальные пары.
         """
-        transitions = {
-            "q0": {
-                "a": ("a", "R", "q0"),
-                "b": ("b", "R", "q0"),
-                "⊔": ("⊔", "L", "q1")
-            },
-            "q1": {
-                "X": ("X", "L", "q1"),
-                "a": ("X", "L", "q2"),
-                "b": ("X", "L", "q3"),
-                "⊔": ("⊔", "R", "q_accept")
-            },
-            "q2": {
-                "a": ("a", "L", "q2"),
-                "b": ("b", "L", "q2"),
-                "X": ("X", "L", "q2"),
-                "⊔": ("⊔", "R", "q4")
-            },
-            "q3": {
-                "a": ("a", "L", "q3"),
-                "b": ("b", "L", "q3"),
-                "X": ("X", "L", "q3"),
-                "⊔": ("⊔", "R", "q5")
-            },
-            "q4": {
-                "X": ("X", "R", "q1"),
-                "a": ("X", "R", "q1"),
-                "b": ("b", "S", "q_reject"),
-                "⊔": ("⊔", "S", "q_reject")
-            },
-            "q5": {
-                "X": ("X", "R", "q1"),
-                "b": ("X", "R", "q1"),
-                "a": ("a", "S", "q_reject"),
-                "⊔": ("⊔", "S", "q_reject")
-            },
-            "q_accept": {},
-            "q_reject": {}
-        }
-        return TransitionTable(transitions)
+        symbols = list("абвгдеёжзийклмнопрстуфхцчшщъыьэюяabcdefghijklmnopqrstuvwxyz")
+        t = {}
 
-    @staticmethod
-    def universal_palindrome_table():
-        """
-        Более обобщённая таблица, использующая '_any_' для любых символов.
-        (пример — сохраняет логику поиска пары)
-        """
-        transitions = {
-            "q0": {
-                "_any_": ("_any_", "R", "q0"),
-                "⊔": ("⊔", "L", "q1")
-            },
-            "q1": {
-                "X": ("X", "L", "q1"),
-                "⊔": ("⊔", "R", "q_accept"),
-                "_any_": ("X", "L", "q2")
-            },
-            "q2": {
-                "_any_": ("_any_", "L", "q2"),
-                "X": ("X", "L", "q2"),
-                "⊔": ("⊔", "R", "q3")
-            },
-            "q3": {
-                "X": ("X", "R", "q1"),
-                "_any_": ("X", "R", "q1"),
-                "⊔": ("⊔", "S", "q_reject")
-            },
-            "q_accept": {},
-            "q_reject": {}
+        # --- Начало ---
+        t["q0"] = {
+            "X": ("X", "R", "q0"),
+            "⊔": ("⊔", "S", "q_accept"),
         }
-        return TransitionTable(transitions)
+        for s in symbols:
+            t["q0"][s] = ("X", "R", f"q_mark_{s}")
+
+        # --- Поиск конца для данного символа ---
+        for s in symbols:
+            t[f"q_mark_{s}"] = {
+                "X": ("X", "R", f"q_mark_{s}"),
+                "_any_": ("_any_", "R", f"q_mark_{s}"),
+                "⊔": ("⊔", "L", f"q_check_{s}")
+            }
+
+            # Проверяем справа символ
+            t[f"q_check_{s}"] = {
+                s: ("X", "L", "q_back"),          # нашли нужный символ справа
+                "X": ("X", "L", f"q_check_{s}"),  # пропускаем отмеченные
+                "⊔": ("⊔", "S", "q_accept"),      # дошли до конца — центр, палиндром
+                "_any_": ("_any_", "S", "q_reject")
+            }
+
+        # --- Возврат в начало ---
+        t["q_back"] = {
+            "X": ("X", "L", "q_back"),
+            "_any_": ("_any_", "L", "q_back"),
+            "⊔": ("⊔", "R", "q0")
+        }
+
+        # --- Конечные ---
+        t["q_accept"] = {}
+        t["q_reject"] = {}
+
+        return TransitionTable(t)
