@@ -1,11 +1,16 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
+from tm.database import init_db, save_result, get_history
 from tm.turing_machine import TuringMachine, TransitionTable
 import traceback
 
+# --- Инициализация приложения ---
 app = FastAPI(title="Машина Тьюринга — Палиндром")
 templates = Jinja2Templates(directory="web/templates")
+
+# --- Инициализация базы данных при старте ---
+init_db()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -21,6 +26,7 @@ async def check_word(request: Request):
     """
     Проверка слова на палиндром.
     Принимает JSON {"word": "..."} и возвращает пошаговую симуляцию.
+    Также сохраняет результат в базу данных.
     """
     data = await request.json()
     word = data.get("word", "").strip()
@@ -65,6 +71,9 @@ async def check_word(request: Request):
         result = machine.get_result()
         is_palindrome = machine.state == machine.accept_state
 
+        # Сохраняем результат в базу данных
+        save_result(word, is_palindrome, len(steps))
+
         return JSONResponse({
             "is_palindrome": is_palindrome,
             "result": result,
@@ -76,3 +85,27 @@ async def check_word(request: Request):
         return JSONResponse({
             "error": "Произошла внутренняя ошибка при обработке слова. Попробуйте снова."
         }, status_code=500)
+
+
+@app.get("/history")
+async def history():
+    """
+    Возвращает последние 20 проверок из базы данных.
+    """
+    data = get_history(20)
+    return JSONResponse(data)
+
+
+@app.delete("/history/clear")
+async def clear_history():
+    """
+    Очистка истории (удаляет все записи из таблицы history).
+    """
+    import sqlite3
+    from tm.database import DB_PATH
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM history")
+    conn.commit()
+    conn.close()
+    return JSONResponse({"message": "История очищена."})

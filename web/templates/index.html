@@ -97,6 +97,9 @@
       margin: 10px 0;
       font-weight: bold;
     }
+    .history-container {
+      margin-top: 40px;
+    }
   </style>
 </head>
 <body>
@@ -139,11 +142,31 @@
   </div>
 
   <div id="controls" class="controls d-none">
-    <button class="btn btn-outline-secondary btn-control" id="firstStep">⏮ Первый</button>
-    <button class="btn btn-outline-primary btn-control" id="prevStep">◀ Назад</button>
-    <button class="btn btn-outline-success btn-control" id="autoStep">▶ Авто</button>
-    <button class="btn btn-outline-primary btn-control" id="nextStep">Вперёд ▶</button>
-    <button class="btn btn-outline-secondary btn-control" id="lastStep">Последний ⏭</button>
+    <button class="btn btn-outline-secondary btn-control" id="firstStep">Первый</button>
+    <button class="btn btn-outline-primary btn-control" id="prevStep">Назад</button>
+    <button class="btn btn-outline-success btn-control" id="autoStep">Авто</button>
+    <button class="btn btn-outline-primary btn-control" id="nextStep">Вперёд </button>
+    <button class="btn btn-outline-secondary btn-control" id="lastStep">Последний </button>
+  </div>
+
+  <div class="history-container">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h4>История проверок</h4>
+      <button class="btn btn-sm btn-outline-danger" onclick="clearHistory()">Очистить</button>
+    </div>
+    <table class="table table-striped" id="historyTable">
+      <thead>
+        <tr>
+          <th>Слово</th>
+          <th>Результат</th>
+          <th>Шагов</th>
+          <th>Дата</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="4" class="text-muted text-center">Загрузка истории...</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>
 
@@ -151,6 +174,41 @@
 let steps = [];
 let currentStep = 0;
 let autoInterval = null;
+
+async function loadHistory() {
+  const tableBody = document.querySelector("#historyTable tbody");
+  tableBody.innerHTML = `<tr><td colspan="4" class="text-muted text-center">Загрузка...</td></tr>`;
+
+  try {
+    const res = await fetch('/history');
+    const data = await res.json();
+
+    if (!data || data.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="4" class="text-muted text-center">История пуста</td></tr>`;
+      return;
+    }
+
+    tableBody.innerHTML = "";
+    data.forEach(row => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${row.word}</td>
+        <td>${row.is_palindrome ? 'Палиндром' : 'Не палиндром'}</td>
+        <td>${row.steps}</td>
+        <td>${row.timestamp}</td>
+      `;
+      tableBody.appendChild(tr);
+    });
+  } catch (err) {
+    tableBody.innerHTML = `<tr><td colspan="4" class="text-danger text-center">Ошибка загрузки истории</td></tr>`;
+  }
+}
+
+async function clearHistory() {
+  if (!confirm("Очистить всю историю проверок?")) return;
+  await fetch("/history/clear", { method: "DELETE" });
+  loadHistory();
+}
 
 function renderStep(stepIndex) {
   const tapeDiv = document.getElementById('tape');
@@ -226,6 +284,9 @@ function showFinalResult() {
     "alert alert-danger result-error";
   resultDiv.textContent = data.result;
   resultDiv.classList.remove("d-none");
+
+  // После завершения добавим запись в историю
+  loadHistory();
 }
 
 function updateControls() {
@@ -240,7 +301,7 @@ function updateControls() {
     autoBtn.classList.remove('btn-outline-success');
     autoBtn.classList.add('btn-danger');
   } else {
-    autoBtn.textContent = "▶ Авто";
+    autoBtn.textContent = "Авто ▶";
     autoBtn.classList.remove('btn-danger');
     autoBtn.classList.add('btn-outline-success');
   }
@@ -258,7 +319,7 @@ async function checkWord() {
   }
 
   resultDiv.className = "alert alert-info";
-    resultDiv.textContent = "Машина Тьюринга работает...";
+  resultDiv.textContent = "Машина Тьюринга работает...";
   resultDiv.classList.remove("d-none");
 
   try {
@@ -276,7 +337,6 @@ async function checkWord() {
       return;
     }
 
-    // Сохраняем шаги и результат
     steps = data.steps;
     window.finalData = data;
     currentStep = 0;
@@ -290,40 +350,19 @@ async function checkWord() {
   }
 }
 
-// Кнопки управления
-document.getElementById('firstStep').addEventListener('click', () => {
-  currentStep = 0;
-  renderStep(currentStep);
-});
+// Управление шагами
+document.getElementById('firstStep').onclick = () => { currentStep = 0; renderStep(currentStep); };
+document.getElementById('prevStep').onclick = () => { if (currentStep > 0) { currentStep--; renderStep(currentStep); } };
+document.getElementById('nextStep').onclick = () => { if (currentStep < steps.length - 1) { currentStep++; renderStep(currentStep); } };
+document.getElementById('lastStep').onclick = () => { currentStep = steps.length - 1; renderStep(currentStep); };
 
-document.getElementById('prevStep').addEventListener('click', () => {
-  if (currentStep > 0) {
-    currentStep--;
-    renderStep(currentStep);
-  }
-});
-
-document.getElementById('nextStep').addEventListener('click', () => {
-  if (currentStep < steps.length - 1) {
-    currentStep++;
-    renderStep(currentStep);
-  }
-});
-
-document.getElementById('lastStep').addEventListener('click', () => {
-  currentStep = steps.length - 1;
-  renderStep(currentStep);
-});
-
-// Новый — автопроигрывание
-document.getElementById('autoStep').addEventListener('click', () => {
+document.getElementById('autoStep').onclick = () => {
   if (autoInterval) {
     clearInterval(autoInterval);
     autoInterval = null;
     updateControls();
     return;
   }
-
   autoInterval = setInterval(() => {
     if (currentStep < steps.length - 1) {
       currentStep++;
@@ -333,11 +372,12 @@ document.getElementById('autoStep').addEventListener('click', () => {
       autoInterval = null;
       updateControls();
     }
-  }, 700); // скорость — 0.7 сек/шаг
+  }, 700);
   updateControls();
-});
+};
 
 document.getElementById('word').focus();
+loadHistory();
 </script>
 </body>
 </html>
