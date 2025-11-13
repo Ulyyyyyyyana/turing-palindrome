@@ -1,12 +1,12 @@
 import os
 import sqlite3
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication, QWidget, QPushButton, QLineEdit, QTextEdit,
     QLabel, QVBoxLayout, QHBoxLayout, QMessageBox, QGroupBox, QScrollArea,
     QTableWidget, QTableWidgetItem, QHeaderView, QDialog
 )
-from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QFont
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QFont
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "history.db")
 
@@ -93,10 +93,13 @@ class DatabaseViewer(QDialog):
 
 
 class CompactTuringAppGUI(QWidget):
-    """Минималистичный GUI для машины Тьюринга, с сохранением истории."""
-    def __init__(self, machine):
+    """Минималистичный GUI для машины Тьюринга, с сохранением истории.
+       Параметр animate_head=False отключает «движение» (подсветку текущего символа/стрелки).
+    """
+    def __init__(self, machine, animate_head: bool = True):
         super().__init__()
         self.machine = machine
+        self.animate_head = animate_head
         self.timer = QTimer()
         self.timer.timeout.connect(self.auto_step)
         self.steps_count = 0
@@ -222,7 +225,8 @@ class CompactTuringAppGUI(QWidget):
         symbol_label.setAlignment(Qt.AlignCenter)
         symbol_label.setMinimumSize(35, 35)
 
-        if is_current:
+        # показываем подсветку только если включена анимация и это текущая позиция
+        if is_current and self.animate_head:
             symbol_label.setStyleSheet("border:2px solid #e74c3c; color:#e74c3c; font-weight:600;")
             head_label = QLabel("▼")
             head_label.setAlignment(Qt.AlignCenter)
@@ -238,7 +242,10 @@ class CompactTuringAppGUI(QWidget):
 
     def update_tape_display(self):
         for i in reversed(range(self.tape_layout.count())):
-            w = self.tape_layout.itemAt(i).widget()
+            item = self.tape_layout.itemAt(i)
+            if item is None:
+                continue
+            w = item.widget()
             if w:
                 w.deleteLater()
 
@@ -252,7 +259,9 @@ class CompactTuringAppGUI(QWidget):
         tape_str = str(self.machine.tape)
         for i, sym in enumerate(tape_str):
             s = "_" if sym == "⊔" else sym
-            self.tape_layout.addWidget(self.create_tape_cell(s, i, i == self.machine.head))
+            is_current = (i == self.machine.head)
+            # если анимация отключена, передаём False
+            self.tape_layout.addWidget(self.create_tape_cell(s, i, is_current))
         self.tape_layout.addStretch()
 
     # ========================== СТИЛИ ==============================
@@ -368,7 +377,7 @@ class CompactTuringAppGUI(QWidget):
                 self.result_label.setText("Результат: Слово — палиндром")
                 self.result_label.setStyleSheet("background:#d4edda; border:1px solid #c3e6cb;")
             elif self.machine.state == self.machine.reject_state:
-                self.result_label.setText("Результат:  Слово не палиндром")
+                self.result_label.setText("Результат: Слово не палиндром")
                 self.result_label.setStyleSheet("background:#f8d7da; border:1px solid #f5c6cb;")
         else:
             self.result_label.setText("Результат: Выполняется проверка...")
@@ -418,7 +427,7 @@ class CompactTuringAppGUI(QWidget):
     def show_database(self):
         """Показать окно с базой данных"""
         self.db_viewer = DatabaseViewer(self)
-        self.db_viewer.exec_()
+        self.db_viewer.exec()
 
     # ========================== УТИЛИТЫ ==============================
     def show_message(self, title, message, icon):
@@ -426,7 +435,7 @@ class CompactTuringAppGUI(QWidget):
         msg.setWindowTitle(title)
         msg.setText(message)
         msg.setIcon(icon)
-        msg.exec_()
+        msg.exec()
 
     def closeEvent(self, event):
         self.timer.stop()
